@@ -1,0 +1,13 @@
+# ============================================
+# JMComic 禁漫搜索插件配置文件
+# 复制此文件为 config.yaml 后修改
+# ============================================
+
+# 禁漫客户端类型: "api"(移动端,推荐,不限IP) 或 "html"(网页端,需特定地区IP)
+client_impl: "api"
+
+# 代理设置（可选，例如 http://127.0.0.1:7890）
+proxy: "http://127.0.0.1:7777"
+
+# 禁漫域名列表（可选，留空使用默认）
+domains: ["www.cdnhjk.net", "www.cdngwc.cc", "www.cdngwc.net", "www.cdngwc.club", "www.cdnutc.me", "www.cdnplaystation6.vip", "www.cdnaspa.club", "www.cdnplaystation6.cc", "www.cdnaspa.vip"]
