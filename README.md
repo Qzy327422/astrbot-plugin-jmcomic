@@ -15,7 +15,7 @@
 
 ## 配置
 
-将 `config.yaml.example` 复制为 `config.yaml`，按需修改：
+按需修改：
 
 ```yaml
 client_impl: "api"   # "api"(推荐,不限IP) 或 "html"(需特定地区IP)

@@ -5,3 +5,4 @@ description: |
   命令: /jm <关键词> 搜索 | /jm <本子ID> 下载整部漫画
 version: 1.0.0
 author: WDNMD修改自tddji
+repo: https://github.com/Qzy327422/astrbot-plugin-jmcomic
