@@ -1,0 +1,86 @@
+{
+  "client_impl": {
+    "description": "禁漫客户端类型",
+    "type": "string",
+    "default": "api",
+    "hint": "api(移动端,推荐,不限IP) 或 html(网页端,需特定地区IP)。留空则回退到 config.yaml 中的设置。"
+  },
+  "proxy": {
+    "description": "代理地址",
+    "type": "string",
+    "default": "",
+    "hint": "例如 http://127.0.0.1:7897。留空则回退到 config.yaml 中的设置，仍为空则不使用代理。"
+  },
+  "domains": {
+    "description": "禁漫域名列表",
+    "type": "list",
+    "default": [],
+    "hint": "自定义禁漫域名。留空则回退到 config.yaml 中的设置，仍为空则使用库默认域名。"
+  },
+  "retry_times": {
+    "description": "网络请求重试次数",
+    "type": "int",
+    "default": 3,
+    "hint": "客户端请求失败时的重试次数。"
+  },
+  "timeout_request": {
+    "description": "轻量请求超时（秒）",
+    "type": "int",
+    "default": 30,
+    "hint": "封面下载、搜索、获取本子/章节详情等轻量网络请求的超时时间。网络慢可调大。"
+  },
+  "timeout_download_photo": {
+    "description": "单章图片下载超时（秒）",
+    "type": "int",
+    "default": 300,
+    "hint": "下载单个章节全部图片的超时时间。章节图多或网速慢时可调大。"
+  },
+  "timeout_compress": {
+    "description": "图片压缩超时（秒）",
+    "type": "int",
+    "default": 300,
+    "hint": "把下载的图片批量压缩为 JPEG 的超时时间。"
+  },
+  "timeout_pdf": {
+    "description": "PDF 生成超时（秒）",
+    "type": "int",
+    "default": 300,
+    "hint": "把图片合成 PDF 的超时时间。"
+  },
+  "timeout_zip": {
+    "description": "ZIP 打包超时（秒）",
+    "type": "int",
+    "default": 180,
+    "hint": "把 PDF 打包为加密 ZIP 的超时时间。"
+  },
+  "max_images": {
+    "description": "单本子最大图片数上限",
+    "type": "int",
+    "default": 400,
+    "hint": "超过此张数的本子将被拒绝下载，用于防止内存溢出和 Bot 卡死。调大会显著增加内存占用，请量力而行。"
+  },
+  "search_result_limit": {
+    "description": "搜索结果展示条数",
+    "type": "int",
+    "default": 20,
+    "hint": "/jm 搜索关键词时最多展示多少条结果。"
+  },
+  "cache_max_size_gb": {
+    "description": "ZIP 缓存目录上限（GB）",
+    "type": "float",
+    "default": 5,
+    "hint": "cache/zips 目录超过此大小时触发清理。"
+  },
+  "cache_target_size_gb": {
+    "description": "清理后目标大小（GB）",
+    "type": "float",
+    "default": 4,
+    "hint": "触发清理时按最旧优先删除，直到降到此大小。应小于上限。"
+  },
+  "temp_file_max_age_hours": {
+    "description": "临时文件保留时长（小时）",
+    "type": "int",
+    "default": 6,
+    "hint": "cache/temp 下超过此时长的临时文件会被清理。"
+  }
+}

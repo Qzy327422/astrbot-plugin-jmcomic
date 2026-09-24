@@ -15,7 +15,7 @@ import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from astrbot.api.message_components import Image, Nodes, Plain, Node
-from astrbot.api import logger
+from astrbot.api import logger, AstrBotConfig
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import filter
 
@@ -121,11 +121,12 @@ def _safe_file_count(path: str) -> int:
     "astrbot_plugin_jmcomic",
     "JMComic禁漫搜索",
     "禁漫本子搜索/下载整部漫画ZIP",
-    "2.2.1",
+    "2.3.0",
 )
 class JMComicPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: AstrBotConfig | None = None):
         super().__init__(context)
+        self.config = config or {}
         self._load_config()
         self._client = None
         self._option = None
@@ -367,7 +368,7 @@ class JMComicPlugin(Star):
     async def _check_and_clean_cache(self):
         """检查缓存目录大小，如果超过 5GB 则清理最旧的文件"""
         try:
-            max_size = 5 * 1024 * 1024 * 1024  # 5GB
+            max_size = int(self._cache_max_size_gb * 1024 * 1024 * 1024)
 
             def get_dir_size(path):
                 total = 0
@@ -380,7 +381,7 @@ class JMComicPlugin(Star):
 
             current_size = get_dir_size(self.zip_dir)
             if current_size > max_size:
-                logger.info(f"缓存目录大小 ({current_size / 1024 / 1024 / 1024:.2f}GB) 超过 5GB，开始清理...")
+                logger.info(f"缓存目录大小 ({current_size / 1024 / 1024 / 1024:.2f}GB) 超过 {self._cache_max_size_gb}GB，开始清理...")
 
                 files = []
                 for f in os.listdir(self.zip_dir):
@@ -390,7 +391,7 @@ class JMComicPlugin(Star):
 
                 files.sort(key=lambda x: x[1])
 
-                target_size = 4 * 1024 * 1024 * 1024
+                target_size = int(self._cache_target_size_gb * 1024 * 1024 * 1024)
                 for fp, _, size in files:
                     if current_size <= target_size:
                         break
@@ -403,7 +404,7 @@ class JMComicPlugin(Star):
 
             self._cleanup_astrobot_fileseg_temp(max_age_minutes=30)
             self._prune_cover_cache_entries()
-            self._cleanup_old_temp_files(max_age_hours=6)
+            self._cleanup_old_temp_files(max_age_hours=self._temp_file_max_age_hours)
             self._log_runtime_state("cache-cleanup")
         except Exception as e:
             logger.error(f"检查清理缓存异常: {e}")
@@ -537,6 +538,35 @@ class JMComicPlugin(Star):
             except ImportError:
                 pass
 
+        def _cfg_int(key, default):
+            try:
+                return int(astr_cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        def _cfg_float(key, default):
+            try:
+                return float(astr_cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        # 网络/超时（秒）
+        self._retry_times = _cfg_int("retry_times", 3)
+        self._timeout_request = _cfg_int("timeout_request", 30)
+        self._timeout_download_photo = _cfg_int("timeout_download_photo", 300)
+        self._timeout_compress = _cfg_int("timeout_compress", 300)
+        self._timeout_pdf = _cfg_int("timeout_pdf", 300)
+        self._timeout_zip = _cfg_int("timeout_zip", 180)
+
+        # 下载限制
+        self._max_images = _cfg_int("max_images", 400)
+        self._search_result_limit = _cfg_int("search_result_limit", 20)
+
+        # 缓存清理
+        self._cache_max_size_gb = _cfg_float("cache_max_size_gb", 5.0)
+        self._cache_target_size_gb = _cfg_float("cache_target_size_gb", 4.0)
+        self._temp_file_max_age_hours = _cfg_int("temp_file_max_age_hours", 6)
+
     def _init_jm_client(self):
         try:
             JmModuleConfig.FLAG_ENABLE_JM_LOG = False
@@ -560,7 +590,7 @@ class JMComicPlugin(Star):
                         },
                     },
                     "impl": self._client_impl,
-                    "retry_times": 3,
+                    "retry_times": self._retry_times,
                 },
             }
             self._option = JmOption.construct(option_dict)
@@ -595,7 +625,7 @@ class JMComicPlugin(Star):
 
             return await self._run_blocking_with_timeout(
                 do_download,
-                timeout=30,
+                timeout=self._timeout_request,
                 stage="cover",
             )
         except Exception as e:
@@ -653,7 +683,7 @@ class JMComicPlugin(Star):
             return await self._run_blocking_with_timeout(
                 self._search_page_sync,
                 1, keyword,
-                timeout=30,
+                timeout=self._timeout_request,
                 stage="search",
             )
         except asyncio.TimeoutError:
@@ -680,7 +710,7 @@ class JMComicPlugin(Star):
 
             result = await self._run_blocking_with_timeout(
                 do_get,
-                timeout=30,
+                timeout=self._timeout_request,
                 token=token,
                 stage="detail",
             )
@@ -800,7 +830,7 @@ class JMComicPlugin(Star):
                 )
                 return
 
-            show = results[:20]
+            show = results[:self._search_result_limit]
             lines_text = [
                 f"搜索「{keyword}」共 {len(results)} 条，展示前 {len(show)} 条："
             ]
@@ -835,7 +865,7 @@ class JMComicPlugin(Star):
                     await self._send_context_text(send_ctx, f"未找到本子 JM{album_id}")
                     return
 
-                max_images = 400
+                max_images = self._max_images
                 self._mark_download_stage(token, "estimating")
                 estimated_images = await self._estimate_album_images(album, token=token)
                 if self._is_download_stale(token):
@@ -919,7 +949,7 @@ class JMComicPlugin(Star):
             total += image_count
             if token:
                 self._mark_download_stage(token, "estimating", estimated_images=total)
-            if total > 400:
+            if total > self._max_images:
                 return total
         return total
 
@@ -934,7 +964,7 @@ class JMComicPlugin(Star):
 
         return await self._run_blocking_with_timeout(
             do_get,
-            timeout=30,
+            timeout=self._timeout_request,
             token=token,
             stage="photo-detail",
         )
@@ -998,7 +1028,7 @@ class JMComicPlugin(Star):
 
                 success = await self._run_blocking_with_timeout(
                     do_download,
-                    timeout=300,
+                    timeout=self._timeout_download_photo,
                     token=token,
                     stage="download-photo",
                 )
@@ -1018,7 +1048,7 @@ class JMComicPlugin(Star):
                 return {"ok": False, "message": "下载完成但未找到图片文件。"}
 
             total_images = len(chapter_files)
-            MAX_IMAGES = 400
+            MAX_IMAGES = self._max_images
             if total_images > MAX_IMAGES:
                 logger.warning(f"JM{album_id} 图片数量过多({total_images})，超过上限 {MAX_IMAGES}，停止生成文件")
                 return {"ok": False, "message": f"JM{album_id}「{album_name}」共 {total_images} 张图，超过当前上限 {MAX_IMAGES} 张。\n为防止内存溢出和 Bot 卡死，已拒绝下载。"}
@@ -1032,7 +1062,7 @@ class JMComicPlugin(Star):
             image_files = await self._run_blocking_with_timeout(
                 self._compress_images,
                 chapter_files, compressed_dir, 75, 1600,
-                timeout=300,
+                timeout=self._timeout_compress,
                 token=token,
                 stage="compress",
             )
@@ -1049,7 +1079,7 @@ class JMComicPlugin(Star):
             pdf_success = await self._run_blocking_with_timeout(
                 self._images_to_pdf,
                 image_files, pdf_path,
-                timeout=300,
+                timeout=self._timeout_pdf,
                 token=token,
                 stage="pdf",
             )
@@ -1068,7 +1098,7 @@ class JMComicPlugin(Star):
             zip_success = await self._run_blocking_with_timeout(
                 self._pdf_to_zip,
                 pdf_path, zip_path, album_id,
-                timeout=180,
+                timeout=self._timeout_zip,
                 token=token,
                 stage="zip",
             )
